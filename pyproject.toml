@@ -1,0 +1,24 @@
+[project]
+name = "pyx-lang"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Marckie Zeender", email = "mkzeender@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "parso>=0.8.4",
+]
+
+[project.scripts]
+pyx-lang = "pyx_lang.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+]
