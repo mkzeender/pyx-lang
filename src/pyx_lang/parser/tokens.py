@@ -4,9 +4,11 @@ from parso.python.token import TokenType, PythonTokenTypes
 
 
 class _PyXTokenTypes(Enum):
-   PYXSTRING_STRING = TokenType('PYXSTRING_STRING')
+    PYXSTRING_STRING = TokenType("PYXSTRING_STRING")
+
 
 type PyXTokenTypes = _PyXTokenTypes | PythonTokenTypes
+
 
 class PyXTokenTypesNS:
     STRING = PythonTokenTypes.STRING

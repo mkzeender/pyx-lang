@@ -1,7 +1,4 @@
-
-
 from ast import NodeVisitor
 
 
-class Visitor(NodeVisitor):
-    ...
+class Visitor(NodeVisitor): ...

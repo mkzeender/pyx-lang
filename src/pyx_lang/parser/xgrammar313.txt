@@ -174,8 +174,8 @@ fstring_format_spec: ':' fstring_content*
 
 
 pyxtag: '<' NAME pyxparam* (('/' '>') | ('>' pyxcontent* '</' NAME '>'))
-pyxparam: NAME | (NAME '=' factor)
-# pyxparams: pyxparam*
+pyxparams: 
+pyxparam: (NAME '=' factor)
 pyxcontent: pyxtag | factor
 
 #pyxstring: FSTRING_STRING | fstring_expr | pyxtag
