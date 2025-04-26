@@ -173,7 +173,7 @@ fstring_format_spec: ':' fstring_content*
 
 
 
-pyxtag: '<' NAME pyxparam* (('/' '>') | ('>' pyxcontent* '</' NAME '>'))
+pyxtag: '<' NAME pyxparam* ('/>' | ('>' pyxcontent* '</' NAME '>'))
 pyxparams: 
 pyxparam: (NAME '=' factor)
 pyxcontent: pyxtag | factor
