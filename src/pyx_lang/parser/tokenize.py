@@ -34,20 +34,6 @@ def tokenize(
     return tokenize_lines(lines, version_info=version_info, start_pos=start_pos)
 
 
-def _print_tokens(func):
-    """
-    A small helper function to help debug the tokenize_lines function.
-    """
-
-    def wrapper(*args, **kwargs):
-        for token in func(*args, **kwargs):
-            print(token)  # This print is intentional for debugging!
-            yield token
-
-    return wrapper
-
-
-# @_print_tokens
 def tokenize_lines(
     lines: Iterable[str],
     *,
@@ -134,6 +120,9 @@ def tokenize_lines(
                 continue
 
         while pos < max_:
+            if pyx_stack:
+                node = pyx_stack[-1]
+                
             if fstring_stack:
                 tos = fstring_stack[-1]
                 if not tos.is_in_expr():
