@@ -9,8 +9,6 @@ import sys
 from types import CodeType, ModuleType
 from typing import Sequence
 
-AstNodeType = Module | Expression | Interactive
-
 
 class PyXFinder(MetaPathFinder):
     def find_spec(
@@ -40,11 +38,11 @@ class PyXLoader(SourceFileLoader):
         super().__init__(fullname, path)
 
     def source_to_code(
-        self, data: Buffer | str | AstNodeType, path: Buffer | str | os.PathLike[str]
+        self, data: Buffer | str | Module | Expression | Interactive, path: Buffer | str | os.PathLike[str]
     ) -> CodeType:
-        print("\n\n\n\n\n\n\ncompiling!\n\n\n\n\n\n\n")
+        print("\n\n\n\n\n\n\ncompiling!\n\n\n\n\n\n\n") # TODO: remove
 
-        if isinstance(data, AstNodeType):
+        if isinstance(data, Module | Expression | Interactive):
             # already valid Python AST
             return super().source_to_code(data, path)
 
