@@ -1,7 +1,4 @@
-from enum import Enum
-from re import Pattern
 from typing import Any
-from parso.python.token import TokenType, PythonTokenTypes
 
 from parso.python.tokenize import (
     MAX_UNICODE,
@@ -10,78 +7,27 @@ from parso.python.tokenize import (
     _all_string_prefixes,
     maybe,
     TokenCollection,
-    FStringNode
 )
-
-
-class _PyXTokenTypes(Enum):
-    PYXSTRING_STRING = TokenType("PYXSTRING_STRING")
-
-
-type PyXTokenTypes = _PyXTokenTypes | PythonTokenTypes
-
-
-class PyXTokenTypesNS:
-    STRING = PythonTokenTypes.STRING
-    NAME = PythonTokenTypes.NAME
-    NUMBER = PythonTokenTypes.NUMBER
-    OP = PythonTokenTypes.OP
-    NEWLINE = PythonTokenTypes.NEWLINE
-    INDENT = PythonTokenTypes.INDENT
-    DEDENT = PythonTokenTypes.DEDENT
-    ENDMARKER = PythonTokenTypes.ENDMARKER
-    ERRORTOKEN = PythonTokenTypes.ERRORTOKEN
-    ERROR_DEDENT = PythonTokenTypes.ERROR_DEDENT
-    FSTRING_START = PythonTokenTypes.FSTRING_START
-    FSTRING_STRING = PythonTokenTypes.FSTRING_STRING
-    FSTRING_END = PythonTokenTypes.FSTRING_END
-
-    PYXSTRING_STRING = _PyXTokenTypes.PYXSTRING_STRING
-
-
-class PyxFStringNode(FStringNode):
-    parentheses_count: int
-    previous_lines: str
-    last_string_start_pos: tuple[int, int] | None | Any
-    
-class PyxNode(FStringNode):
-    pass
-
 
 _token_collection_cache: dict[Any, TokenCollection] = {}
 
 Whitespace = r"[ \f\t]*"
 Name = "([A-Za-z_0-9\u0080-" + MAX_UNICODE + "]+)"
 
-
-pyxstring: Pattern[str]= _compile(r'(?:\{\{|\}\}|[^{}<>&]|&[#]?[a-zA-Z0-9]+;)+')
-pyxstring_end: Pattern[str] = _compile(r"(?:[^<>])*</" + Whitespace + Name + Whitespace + r">")
-
-def find_pyx_string(endpats, fstring_stack, line, lnum, pos):
-    tos = fstring_stack[-1]
-
-    match = pyxstring.match(line, pos)
-    if match is None:
-        return tos.previous_lines, pos
-
-    if not tos.previous_lines:
-        tos.last_string_start_pos = (lnum, pos)
-
-    string = match.group(0)
-    for fstring_stack_node in fstring_stack:
-        end_match = endpats[fstring_stack_node.quote].match(string)
-        if end_match is not None:
-            string = end_match.group(0)[:-len(fstring_stack_node.quote)]
-
-    new_pos = pos
-    new_pos += len(string)
-    # even if allow_multiline is False, we still need to check for trailing
-    # newlines, because a single-line f-string can contain line continuations
-    if string.endswith('\n') or string.endswith('\r'):
-        tos.previous_lines += string
-        string = ''
-    else:
-        string = tos.previous_lines + string
+# 
+pyx_break_tokens = {
+    '==',
+    '<=',
+    '!=',
+    'in',
+    'is',
+    'not',
+    'and',
+    'or',
+    'lambda',
+    ':',
+    ':=',
+}
 
 
 def _create_token_collection(version_info):
