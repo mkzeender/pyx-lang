@@ -49,7 +49,7 @@ class PyXLoader(SourceFileLoader):
         if not isinstance(data, str):
             data = decode_source(data)
 
-        from pyx_lang.compiler.compile import to_python
+        from pyx_lang.parser.compiler.compile import to_python
 
         data = to_python(data)
 
