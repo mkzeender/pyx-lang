@@ -7,9 +7,8 @@ from importlib.resources import read_text
 
 from parso.utils import PythonVersionInfo
 
-from pyx_lang.parser.token_types import PyXTokenTypes
 from pyx_lang.parser.tokenize import tokenize_lines
-from pyx_lang.parser.token_types import PyXTokenTypesNS
+from pyx_lang.parser.tokenizer.token_types import PyXTokenTypesNS
 
 
 class PyXStringString(PythonLeaf):

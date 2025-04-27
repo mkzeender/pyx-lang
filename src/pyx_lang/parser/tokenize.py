@@ -21,7 +21,7 @@ from parso.utils import PythonVersionInfo, split_lines, parse_version_string
 from re import Pattern
 
 from pyx_lang.parser.tokenizer.find_pyx_string import PyxFStringNode, PyxNode, PyxNodeStates, find_pyx_string, pyx_tag_status
-from pyx_lang.parser.token_types import PyXTokenTypes
+from pyx_lang.parser.tokenizer.token_types import PyXTokenTypes
 from pyx_lang.parser.tokenizer.tokens import get_token_collection, pyx_break_tokens
 
 
