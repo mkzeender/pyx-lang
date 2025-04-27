@@ -7,7 +7,7 @@ from importlib.resources import read_text
 
 from parso.utils import PythonVersionInfo
 
-from pyx_lang.parser.tokenize import tokenize_lines
+from pyx_lang.parser.tokenizer.tokenize import tokenize_lines
 from pyx_lang.parser.tokenizer.token_types import PyXTokenTypesNS
 
 

@@ -1,6 +1,6 @@
 
 
-from pyx_lang.parser.tokenize import tokenize
+from pyx_lang.parser.tokenizer.tokenize import tokenize
 
 def listit(v: str):
     l = list(tokenize(v))
