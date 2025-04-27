@@ -19,14 +19,27 @@ def test_tag():
 
     gram = load_grammar()
 
-    v: Node = gram.parse('v = <a href="hi">"do" hooligan(9)</a>', error_recovery=False)
+    v: Node = gram.parse('return <a href="hi">do hooligan 9</a>', error_recovery=False)
 
     v.children
 
 
 def test_code():
+    code = """
+def example_func(link):
+
+    return <div>
+            <span>
+                <a href=link>
+                    Hello world!
+                </a>
+            </span>
+        </div>
+
+"""
     gram = load_grammar()
-    v: Node = gram.parse(code, error_recovery=False)
+    v: Node = gram.parse(code, error_recovery=True)
+    
     ...
 
 

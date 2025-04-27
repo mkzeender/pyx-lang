@@ -49,11 +49,11 @@ class PyXLoader(SourceFileLoader):
         if not isinstance(data, str):
             data = decode_source(data)
 
-        from pyx_lang.parser.compiler.compile import to_python
+        from pyx_lang.parser import compile_to_ast
 
-        data = to_python(data)
+        ast = compile_to_ast(data, mode='exec')
 
-        return super().source_to_code(data, path)
+        return super().source_to_code(ast, path)
 
     def exec_module(self, module: ModuleType) -> None:
 

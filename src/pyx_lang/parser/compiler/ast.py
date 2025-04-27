@@ -16,7 +16,7 @@ from parso.python.tree import (
     Name as CstName,
 )
 from parso.tree import NodeOrLeaf as CstNodeOrLeaf
-from typing import Any, Protocol, TypeIs
+from typing import Any, Literal, Protocol, TypeIs
 
 
 class Located(Protocol):
@@ -136,3 +136,5 @@ class CstToAstCompiler:
             ],  # TODO: actual body!
             keywords=kwds,
         )
+
+

@@ -1,14 +1,12 @@
 def example_func(link):
 
-    return (
-        <div>
+    return <div>
             <span>
                 <a href=link>
-                    "Hello world!"
+                    Hello world!
                 </a>
             </span>
         </div>
-    )
 
 
 

@@ -23,7 +23,12 @@ def test_multilines():
     v = listit(
 """
 <hello>
-    bruh muffin
+    <
+        hi
+        val='wow'
+    >
+        bruh muffin
+    </hi>
 </hello>
 
 if val1 < val1:
