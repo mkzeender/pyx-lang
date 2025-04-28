@@ -5,10 +5,19 @@ from parso.python.diff import DiffParser
 from parso.utils import parse_version_string
 from importlib.resources import read_text
 
+from parso.python.tree import PythonNode as CstNode
 from parso.utils import PythonVersionInfo
 
 from pyx_lang.parser.tokenizer.tokenize import tokenize_lines
 from pyx_lang.parser.tokenizer.token_types import PyXTokenTypesNS
+
+
+
+def parse(src: str) -> CstNode:
+    gram = load_grammar()
+    return gram.parse(src)
+
+
 
 
 class PyXStringString(PythonLeaf):

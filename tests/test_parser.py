@@ -1,9 +1,6 @@
-from pyx_lang.parser.parse import load_grammar
+from pyx_lang.parser._parse import load_grammar
 from importlib.resources import read_text
 from parso.tree import Node
-import parso.tree
-
-from ast import parse
 
 code = read_text(__name__, 'pyx_data.pyx')
 
@@ -46,3 +43,5 @@ def example_func(link):
 def test_import():
     from pyx_lang import autoinstall
     from . import pyx_data #type: ignore
+
+    assert pyx_data.example_func('/woah')

@@ -9,6 +9,13 @@ import sys
 from types import CodeType, ModuleType
 from typing import Sequence
 
+def _decode_path(path: str | os.PathLike | Buffer):
+    if isinstance(path, str):
+        return path
+    if isinstance(path, os.PathLike):
+        return str(Path(path))
+
+    return bytes(path).decode()
 
 class PyXFinder(MetaPathFinder):
     def find_spec(
@@ -38,8 +45,9 @@ class PyXLoader(SourceFileLoader):
         super().__init__(fullname, path)
 
     def source_to_code(
-        self, data: Buffer | str | Module | Expression | Interactive, path: Buffer | str | os.PathLike[str]
+        self, data: Buffer | str | Module | Expression | Interactive, path: Buffer |str | os.PathLike[str]
     ) -> CodeType:
+        path = _decode_path(path)
         print("\n\n\n\n\n\n\ncompiling!\n\n\n\n\n\n\n") # TODO: remove
 
         if isinstance(data, Module | Expression | Interactive):
@@ -51,7 +59,7 @@ class PyXLoader(SourceFileLoader):
 
         from pyx_lang.parser import compile_to_ast
 
-        ast = compile_to_ast(data, mode='exec')
+        ast = compile_to_ast(data, mode='exec', filepath=path)
 
         return super().source_to_code(ast, path)
 

@@ -11,12 +11,15 @@ from ast import (
 )
 import ast
 from parso.python.tree import (
+    PythonBaseNode as CstBaseNode,
     PythonNode as CstNode,
     Operator as CstOperator,
     Name as CstName,
+    PythonErrorLeaf as CstErrorLeaf,
+    PythonErrorNode as CstErrorNode,
 )
 from parso.tree import NodeOrLeaf as CstNodeOrLeaf
-from typing import Any, Literal, Protocol, TypeIs
+from typing import Any, Never, Protocol, TypeIs
 
 
 class Located(Protocol):
@@ -27,7 +30,17 @@ class Located(Protocol):
 
 
 def has_loc(v) -> TypeIs[Located]:
+    return True  # hack
     return hasattr(v, "lineno")
+
+
+def _pos_dict(node):
+    return dict(
+        lineno=node.start_pos[0],
+        col_offset=node.start_pos[1],
+        end_lineno=node.end_pos[0],
+        end_col_offset=node.end_pos[1],
+    )
 
 
 class AstOffsetApplier(NodeTransformer):
@@ -38,13 +51,16 @@ class AstOffsetApplier(NodeTransformer):
 
     def visit(self, node: AST) -> Any:
         if has_loc(node):
-            node.lineno += self.line_offset
-            if node.end_lineno is not None:
-                node.end_lineno += self.line_offset
+            try:
+                node.lineno += self.line_offset
+                if node.end_lineno is not None:
+                    node.end_lineno += self.line_offset
 
-            node.col_offset += self.col_offset
-            if node.end_col_offset is not None:
-                node.end_col_offset += self.col_offset
+                node.col_offset += self.col_offset
+                if node.end_col_offset is not None:
+                    node.end_col_offset += self.col_offset
+            except AttributeError:
+                pass
 
         return super().visit(node)
 
@@ -59,35 +75,54 @@ def apply_offset(
     AstOffsetApplier(line_offset, col_offset).visit(root_node)
 
     if has_loc(root_node):
-        if root_col_start is not None:
-            root_node.col_offset = root_col_start
-        if root_col_end is not None:
-            root_node.end_col_offset = root_col_end
+        try:
+            if root_col_start is not None:
+                root_node.col_offset = root_col_start
+            if root_col_end is not None:
+                root_node.end_col_offset = root_col_end
+        except AttributeError:
+            pass
 
 
-def compile_subexpr(node: CstNode) -> ast.expr:
-    expr = ast.parse(node.get_code(include_prefix=False), mode="eval").body
+def compile_subexpr(node: CstNodeOrLeaf) -> ast.expr:
+    code = node.get_code(include_prefix=False)
+    assert isinstance(code, str)
+    expr_stmt = ast.parse("(" + code + ")", mode="exec").body[0]
+    assert isinstance(expr_stmt, ast.Expr)
+    expr = expr_stmt.value
 
-    apply_offset(expr, line_offset=node.start_pos[0], col_offset=node.start_pos[1])
+    apply_offset(expr, line_offset=node.start_pos[0], col_offset=node.start_pos[1] - 1)
 
     return expr
 
 
 class CstToAstCompiler:
-    def __init__(self) -> None:
-        self._locs_to_override = dict[tuple[int, int], AST]()
+    def __init__(self, filename: str = "<string>") -> None:
+        self.locs_to_override = dict[tuple[int, int], AST]()
+        self.filename = filename
 
     def generic_visit[NodeT: CstNodeOrLeaf](self, node: NodeT) -> NodeT:
-        if isinstance(node, CstNode):
+        if isinstance(node, CstErrorLeaf | CstErrorNode):
+            self.generic_error(node)
+        if isinstance(node, CstBaseNode | CstNode):
             for i, child in enumerate(node.children):
                 node.children[i] = self.visit(child)
         return node
+
+    def generic_error(self, node: CstErrorLeaf | CstErrorNode, msg=None) -> Never:
+        bad_code = node.get_code()
+        if msg is None:
+            msg = f'Unexpected "{node.get_first_leaf().get_code()}" here'  # type: ignore
+
+        raise SyntaxError(
+            msg, (self.filename, *node.start_pos, bad_code, *node.end_pos)
+        )
 
     def visit[NodeT: CstNodeOrLeaf](self, node: NodeT) -> NodeT:
         return getattr(self, "visit_" + node.type, self.generic_visit)(node)
 
     def visit_pyxtag(self, node: CstNode) -> CstNodeOrLeaf:
-        self._locs_to_override[node.start_pos] = self.create_pyxtag(node)
+        self.locs_to_override[node.start_pos] = self.create_pyxtag(node)
 
         prefix = node.get_first_leaf().prefix  # type: ignore
         code = node.get_code(include_prefix=False)
@@ -109,32 +144,31 @@ class CstToAstCompiler:
         kwds = list[keyword]()
 
         for child in node.children:
-            if isinstance(child, CstName):
-                if name not in (None, child.value):
-                    raise SyntaxError(
-                        "Closing tag name must match opening tag name"
-                    )  # TODO: better error handling?
-                name = child.value
-            if child.type == "pyxparam":
-                assert isinstance(child, CstNode)
-                kwds.append(
-                    keyword(
-                        arg=child.children[0].value,  # type: ignore
-                        value=compile_subexpr(child.children[2]),  # type: ignore
-                    )
-                )
+            match child:
+                case CstName(value=value):
+                    if name not in (None, value):
+                        raise SyntaxError(
+                            "Closing tag name must match opening tag name"
+                        )  # TODO: better error handling?
+                    name = child.value
+                case CstNode(type="pyxparam", children=[CstName(value=arg) as n, _, expr]):
+                    kwds.append(keyword(arg=arg, value=compile_subexpr(expr), **_pos_dict(n)))
 
         assert name is not None
 
-        return Call(
+        expr = Call(
             func=Attribute(
-                value=Name(id="_pyx_", ctx=Load()), attr="create_element", ctx=Load()
+                value=Name(id="_pyx_", ctx=Load(), **_pos_dict(node)),
+                attr="create_element",
+                ctx=Load(),
+                **_pos_dict(node),
             ),
             args=[
-                Name(id=name, ctx=Load()),
-                JoinedStr(values=[Constant(value="hi there")]),
+                Name(id=name, ctx=Load(), **_pos_dict(node)),
+                # JoinedStr(values=[Constant(value="hi there")], **_pos_dict(node)),
             ],  # TODO: actual body!
             keywords=kwds,
+            **_pos_dict(node),
         )
 
-
+        return expr
