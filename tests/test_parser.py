@@ -41,7 +41,7 @@ def example_func(link):
 
 
 def test_import():
-    from pyx_lang import autoinstall
+    from pyx_lang.importer import autoinstall
     from . import pyx_data #type: ignore
 
     assert pyx_data.example_func('/woah')
