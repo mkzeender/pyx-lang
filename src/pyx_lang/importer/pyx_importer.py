@@ -28,7 +28,7 @@ class PyXFinder(MetaPathFinder):
         if path is None:
             path = sys.path
         for dir in path:
-            for file in Path(dir).glob(f"{name}.[pP][yY][xX]"):
+            for file in Path(dir).glob(f"{name}.[pP][yY][xX][xX]"):
                 fp = str(file.resolve())
                 return spec_from_loader(
                     name=fullname, loader=PyXLoader(fullname=fullname, path=fp)
