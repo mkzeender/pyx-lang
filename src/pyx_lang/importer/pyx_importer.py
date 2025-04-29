@@ -1,13 +1,18 @@
-from ast import Expression, Interactive, Module
-from collections.abc import Buffer
+from __future__ import annotations
+
+import os
+import sys
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ModuleSpec, SourceFileLoader
-from importlib.util import spec_from_loader, decode_source
-import os
+from importlib.util import decode_source, spec_from_loader
 from pathlib import Path
-import sys
-from types import CodeType, ModuleType
-from typing import Sequence
+from typing import Sequence, TYPE_CHECKING
+from collections.abc import Buffer
+
+if TYPE_CHECKING:
+    from ast import Expression, Interactive, Module
+    from types import CodeType, ModuleType
+
 
 def _decode_path(path: str | os.PathLike | Buffer):
     if isinstance(path, str):
@@ -16,6 +21,7 @@ def _decode_path(path: str | os.PathLike | Buffer):
         return str(Path(path))
 
     return bytes(path).decode()
+
 
 class PyXFinder(MetaPathFinder):
     def find_spec(
@@ -39,32 +45,33 @@ pyx_importer = PyXFinder()
 
 
 class PyXLoader(SourceFileLoader):
-
     def __init__(self, fullname: str, path: str) -> None:
-
         super().__init__(fullname, path)
 
     def source_to_code(
-        self, data: Buffer | str | Module | Expression | Interactive, path: Buffer |str | os.PathLike[str]
+        self,
+        data: Buffer | str | Module | Expression | Interactive,
+        path: Buffer | str | os.PathLike[str],
     ) -> CodeType:
         path = _decode_path(path)
-        print("\n\n\n\n\n\n\ncompiling!\n\n\n\n\n\n\n") # TODO: remove
+        print("\n\n\n\n\n\n\ncompiling!\n\n\n\n\n\n\n")  # TODO: remove
 
-        if isinstance(data, Module | Expression | Interactive):
+        if isinstance(data, str):
+            pass
+
+        elif isinstance(data, Buffer):
+            data = decode_source(data)
+        else:
             # already valid Python AST
             return super().source_to_code(data, path)
 
-        if not isinstance(data, str):
-            data = decode_source(data)
-
         from pyx_lang.parser import compile_to_ast
 
-        ast = compile_to_ast(data, mode='exec', filepath=path)
+        ast = compile_to_ast(data, mode="exec", filepath=path)
 
         return super().source_to_code(ast, path)
 
     def exec_module(self, module: ModuleType) -> None:
-
         # inject the namespace for creating nodes, etc
         from pyx_lang.hooks import _pyx_
 

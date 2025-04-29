@@ -12,12 +12,9 @@ from pyx_lang.parser.tokenizer.tokenize import tokenize_lines
 from pyx_lang.parser.tokenizer.token_types import PyXTokenTypesNS
 
 
-
-def parse(src: str) -> CstNode:
+def parse_to_cst(src: str) -> CstNode:
     gram = load_grammar()
     return gram.parse(src)
-
-
 
 
 class PyXStringString(PythonLeaf):
@@ -56,7 +53,6 @@ _gram = None
 def load_grammar(_py_grammar=False):
     global _gram
     if _gram is None:
-
         version = parse_version_string()
         gram_text = read_text(
             __name__,

@@ -2,7 +2,7 @@ from ast import Module
 import ast
 from collections.abc import Mapping
 from typing import Any, Literal, overload
-from .._parse import parse
+from .._parse import parse_to_cst
 
 from pyx_lang.parser.compiler.ast import CstToAstCompiler, CstNode
 
@@ -39,11 +39,13 @@ def compile_to_ast(
     filepath: str = "<string>",
 ) -> ast.AST:
     if isinstance(src, str):
-        src = parse(src)
+        src = parse_to_cst(src)
 
     compiler = CstToAstCompiler(filename=filepath)
     compiler.visit(src)
-    ast_: ast.AST = ast.parse(src.get_code(), mode=mode, filename=filepath, type_comments=True)
+    ast_: ast.AST = ast.parse(
+        src.get_code(), mode=mode, filename=filepath, type_comments=True
+    )
 
     ast_ = AstModifier(compiler.locs_to_override).visit(ast_)
 
