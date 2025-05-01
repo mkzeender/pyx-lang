@@ -4,8 +4,9 @@ Some files are taken from the parso library and are based on the Python standard
 Modifications on these files are dual licensed (both MIT and
 PSF). These files are:
 
-- src/pyx_lang/parser/tokenize.py
-- src/pyx_lang/parser/tokens.py
+- src/pyx_lang/parser/tokenizer/tokenize.py
+- src/pyx_lang/parser/tokenizer/tokens.py
+- src/pyx_lang/parser/tokenizer/find_pyx_string.py
 
 Additionally, the following files are taken from the parso library but are NOT based on the Python standard library. Modifications on these files are licensed under the MIT license. These files are:
 
