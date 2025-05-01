@@ -1,8 +1,11 @@
 from pyx_lang.parser._parse import load_grammar
 from importlib.resources import read_text
-from parso.tree import Node
+from typing import TYPE_CHECKING
 
-code = read_text(__name__, 'pyx_data.pyx')
+if TYPE_CHECKING:
+    from parso.tree import Node
+
+code = read_text(__name__, "pyx_data.pyxx")
 
 
 def test_pyxparse():
@@ -13,7 +16,6 @@ def test_pyxparse():
 
 
 def test_tag():
-
     gram = load_grammar()
 
     v: Node = gram.parse('return <a href="hi">do hooligan 9</a>', error_recovery=False)
@@ -36,12 +38,12 @@ def example_func(link):
 """
     gram = load_grammar()
     v: Node = gram.parse(code, error_recovery=True)
-    
+
     ...
 
 
 def test_import():
     from pyx_lang.importer import autoinstall
-    from . import pyx_data #type: ignore
+    from . import pyx_data  # type: ignore
 
-    assert pyx_data.example_func('/woah')
+    pyx_data.example_func

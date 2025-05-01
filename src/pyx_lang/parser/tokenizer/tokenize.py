@@ -1,9 +1,9 @@
 # ruff: noqa: F821
 # pyright: reportPossiblyUnboundVariable=false
 """
-    Based on the parser from parso.python.tokenize which is in turn based on the
-    standard library parser. Small modifications are made to the kinds of tokens, as
-    well as generating fstring tokens between xml tags.
+Based on the parser from parso.python.tokenize which is in turn based on the
+standard library parser. Small modifications are made to the kinds of tokens, as
+well as generating fstring tokens between xml tags.
 """
 
 from collections.abc import Iterator, Iterable
@@ -20,19 +20,27 @@ from parso.utils import PythonVersionInfo, split_lines, parse_version_string
 
 from re import Pattern
 
-from pyx_lang.parser.tokenizer.find_pyx_string import PyxFStringNode, PyxNode, PyxNodeStates, find_pyx_string, pyx_tag_status
+from pyx_lang.parser.tokenizer.find_pyx_string import (
+    PyxFStringNode,
+    PyxNode,
+    PyxNodeStates,
+    find_pyx_string,
+    pyx_tag_status,
+)
 from pyx_lang.parser.tokenizer.token_types import PyXTokenTypes
 from pyx_lang.parser.tokenizer.tokens import get_token_collection, pyx_break_tokens
 
 
-
 def tokenize(
-    code: str, *, version_info: PythonVersionInfo|None = None, start_pos: tuple[int, int] = (1, 0)
+    code: str,
+    *,
+    version_info: PythonVersionInfo | None = None,
+    start_pos: tuple[int, int] = (1, 0),
 ) -> Iterator[PythonToken]:
     """Generate tokens from a the source code (string)."""
     lines = split_lines(code, keepends=True)
     if version_info is None:
-        version_info = parse_version_string(None) # type: ignore
+        version_info = parse_version_string(None)  # type: ignore
     return tokenize_lines(lines, version_info=version_info, start_pos=start_pos)
 
 
@@ -108,7 +116,7 @@ def tokenize_lines(
             is_first_token = False
 
         if contstr:  # continued string
-            assert endprog is not None  
+            assert endprog is not None
             endmatch = endprog.match(line)
             if endmatch:
                 pos = endmatch.end(0)
@@ -119,28 +127,26 @@ def tokenize_lines(
                 contline = ""
             else:
                 contstr = contstr + line
-                contline = contline + line # type: ignore
+                contline = contline + line  # type: ignore
                 continue
 
         while pos < max_:
             if pyx_stack:
                 node = pyx_stack[-1]
                 if node.is_in_str():
-                    string, pos = find_pyx_string(
-                        pyx_stack, line, lnum, pos
-                    )
+                    string, pos = find_pyx_string(pyx_stack, line, lnum, pos)
                     if string:
                         yield PythonToken(
                             PythonTokenTypes.FSTRING_STRING,
                             string,
                             node.get_start_pos(),
-                            prefix=''
+                            prefix="",
                         )
                         node.previous_lines = ""
                         continue
                     if pos == max_:
                         break
-                
+
             if fstring_stack:
                 tos = fstring_stack[-1]
                 if not tos.is_in_expr():
@@ -216,7 +222,7 @@ def tokenize_lines(
                 and (initial != "\\" or pseudomatch is None)
             ):
                 new_line = False
-                
+
                 if (
                     paren_level == 0
                     and not fstring_stack
@@ -228,11 +234,11 @@ def tokenize_lines(
                         # instead of a new statement
                         #
                         # if tag_status is None:
-                            # prevent future newlines from cancelling the open tag
+                        # prevent future newlines from cancelling the open tag
                         #     pyx_stack[-1].is_confirmed = True
                         # else:
-                            yield PythonToken(PythonTokenTypes.INDENT, "", spos, "")
-                            indents.append(indent_start)
+                        yield PythonToken(PythonTokenTypes.INDENT, "", spos, "")
+                        indents.append(indent_start)
                     else:
                         # no indent
                         # start new statement and ignore any previous "<"
@@ -242,7 +248,12 @@ def tokenize_lines(
             if not pseudomatch:  # scan for tokens
                 match = whitespace.match(line, pos)
                 assert match is not None
-                if new_line and paren_level == 0 and not fstring_stack and not pyx_tag_status(pyx_stack):
+                if (
+                    new_line
+                    and paren_level == 0
+                    and not fstring_stack
+                    and not pyx_tag_status(pyx_stack)
+                ):
                     yield from dedent_if_necessary(match.end())
                 pos = match.end()
                 new_line = False
@@ -277,7 +288,12 @@ def tokenize_lines(
                 if any(not f.allow_multiline() for f in fstring_stack):
                     fstring_stack.clear()
 
-                if not new_line and paren_level == 0 and not fstring_stack and not pyx_tag_status(pyx_stack):
+                if (
+                    not new_line
+                    and paren_level == 0
+                    and not fstring_stack
+                    and not pyx_tag_status(pyx_stack)
+                ):
                     yield PythonToken(PythonTokenTypes.NEWLINE, token, spos, prefix)
                 else:
                     additional_prefix = prefix + token
@@ -359,7 +375,10 @@ def tokenize_lines(
                         if paren_level:
                             paren_level -= 1
                     if pyx_stack:
-                        pyx_stack[-1].close_parentheses(token)
+                        if pyx_stack[-1].parentheses_count == 0:
+                            pyx_stack.pop()
+                        else:
+                            pyx_stack[-1].close_parentheses(token)
                 elif (
                     token.startswith(":")
                     and fstring_stack
@@ -371,24 +390,21 @@ def tokenize_lines(
                     fstring_stack[-1].format_spec_count += 1
                     token = ":"
                     pos = start + 1
-                elif (
-                    token == "<"
-                    and (
-                        not pyx_stack
-                        or pyx_stack[-1].parentheses_count
-                        or pyx_stack[-1].state is PyxNodeStates.INNER
-                    )
+                elif token == "<" and (
+                    not pyx_stack
+                    or pyx_stack[-1].parentheses_count
+                    or pyx_stack[-1].state is PyxNodeStates.INNER
                 ):
                     pyx_stack.append(PyxNode())
                 elif (
-                    token == '</'
+                    token == "</"
                     and pyx_stack
                     and not pyx_stack[-1].parentheses_count
                     and pyx_stack[-1].state is PyxNodeStates.INNER
                 ):
                     pyx_stack[-1].state = PyxNodeStates.CLOSE
                 elif (
-                    token in ('>', '>=')
+                    token in (">", ">=")
                     and pyx_stack
                     and not pyx_stack[-1].parentheses_count
                     and pyx_stack[-1].state is PyxNodeStates.OPEN
@@ -396,21 +412,18 @@ def tokenize_lines(
                     pyx_stack[-1].state = PyxNodeStates.INNER
                     pyx_stack[-1].initial_string = token[1:]
                 elif (
-                    (
-                        token == '/>'
-                        and pyx_stack
-                        and not pyx_stack[-1].parentheses_count
-                        and pyx_stack[-1].state is PyxNodeStates.OPEN
-                    )
-                    or (
-                        token == '>'
-                        and pyx_stack
-                        and not pyx_stack[-1].parentheses_count
-                        and pyx_stack[-1].state is PyxNodeStates.CLOSE
-                    )
+                    token == "/>"
+                    and pyx_stack
+                    and not pyx_stack[-1].parentheses_count
+                    and pyx_stack[-1].state is PyxNodeStates.OPEN
+                ) or (
+                    token == ">"
+                    and pyx_stack
+                    and not pyx_stack[-1].parentheses_count
+                    and pyx_stack[-1].state is PyxNodeStates.CLOSE
                 ):
                     pyx_stack.pop()
-                    
+
                 yield PythonToken(PythonTokenTypes.OP, token, spos, prefix)
             if (
                 token in pyx_break_tokens
