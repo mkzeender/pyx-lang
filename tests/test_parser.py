@@ -46,4 +46,6 @@ def test_import():
     from pyx_lang.importer import autoinstall
     from . import pyx_data  # type: ignore
 
-    pyx_data.example_func
+    assert pyx_data.example_func
+
+    assert pyx_data.test_regular_features()

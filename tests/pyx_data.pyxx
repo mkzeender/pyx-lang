@@ -10,8 +10,15 @@ def example_func(link):
 
 
 
-    
+def test_regular_features():
+    x, y, z = 1, 2, 3
 
+    r1 = x<y and y>1
+    assert r1 == True
 
+    r2 = (x < y) > 0
 
+    assert r2 == True
+
+    return True
     

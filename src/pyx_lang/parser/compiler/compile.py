@@ -14,7 +14,7 @@ class AstModifier(ast.NodeTransformer):
     def visit_Tuple(self, node: ast.Tuple) -> Any:
         if (v := self.replacements.get((node.lineno, node.col_offset))) is not None:
             return v
-        return super().visit_Tuple(node)
+        return node
 
 
 @overload
