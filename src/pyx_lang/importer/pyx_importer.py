@@ -76,11 +76,3 @@ class PyXLoader(SourceFileLoader):
         ast = compile_to_ast(data, mode="exec", filepath=path)
 
         return super().source_to_code(ast, path)
-
-    def exec_module(self, module: ModuleType) -> None:
-        # inject the namespace for creating nodes, etc
-        from pyx_lang.hooks import _pyx_
-
-        module._pyx_ = _pyx_  # type: ignore
-
-        return super().exec_module(module)
