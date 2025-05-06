@@ -271,6 +271,9 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+linting = [
+    { name = "stopit" },
+]
 
 [package.metadata]
 requires-dist = [{ name = "parso", specifier = ">=0.8.4" }]
@@ -282,6 +285,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "ruff", specifier = ">=0.11.7" },
 ]
+linting = [{ name = "stopit", specifier = ">=1.1.2" }]
 
 [[package]]
 name = "ruff"
@@ -321,6 +325,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/28/e3/55dcc2cfbc3ca9c29
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/7b/ce1eafaf1a76852e2ec9b22edecf1daa58175c090266e9f6c64afcd81d91/stack_data-0.6.3-py3-none-any.whl", hash = "sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695", size = 24521, upload_time = "2023-09-30T13:58:03.53Z" },
 ]
+
+[[package]]
+name = "stopit"
+version = "1.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/35/58/e8bb0b0fb05baf07bbac1450c447d753da65f9701f551dca79823ce15d50/stopit-1.1.2.tar.gz", hash = "sha256:f7f39c583fd92027bd9d06127b259aee7a5b7945c1f1fa56263811e1e766996d", size = 18281, upload_time = "2018-02-09T00:32:14.204Z" }
 
 [[package]]
 name = "traitlets"
