@@ -1,26 +1,29 @@
 from __future__ import annotations
 
-import os
+# Limit how much we import. This module is loaded at Python startup!!!
+# Don't import things until they are needed.
 import sys
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ModuleSpec, SourceFileLoader
 from importlib.util import decode_source, spec_from_loader
-from pathlib import Path
-from typing import Sequence, TYPE_CHECKING
-from collections.abc import Buffer
 
+TYPE_CHECKING = False
 if TYPE_CHECKING:
+    from os import PathLike
+    from collections.abc import Buffer, Sequence
     from ast import Expression, Interactive, Module
     from types import CodeType, ModuleType
 
 
-def _decode_path(path: str | os.PathLike | Buffer):
+def _decode_path(path: str | PathLike | Buffer) -> str:
     if isinstance(path, str):
         return path
-    if isinstance(path, os.PathLike):
-        return str(Path(path))
+    try:
+        from pathlib import Path
 
-    return bytes(path).decode()
+        return str(Path(path))  # type: ignore
+    except:
+        return bytes(path).decode()  # type: ignore
 
 
 class PyXFinder(MetaPathFinder):
@@ -30,6 +33,8 @@ class PyXFinder(MetaPathFinder):
         path: Sequence[str] | None,
         target: ModuleType | None = None,
     ) -> ModuleSpec | None:
+        from pathlib import Path
+
         name = fullname.split(".")[-1]
         if path is None:
             path = sys.path
@@ -51,19 +56,20 @@ class PyXLoader(SourceFileLoader):
     def source_to_code(
         self,
         data: Buffer | str | Module | Expression | Interactive,
-        path: Buffer | str | os.PathLike[str],
+        path: Buffer | str | PathLike[str],
     ) -> CodeType:
         path = _decode_path(path)
-        print("\n\n\n\n\n\n\ncompiling!\n\n\n\n\n\n\n")  # TODO: remove
 
         if isinstance(data, str):
             pass
-
-        elif isinstance(data, Buffer):
-            data = decode_source(data)
         else:
-            # already valid Python AST
-            return super().source_to_code(data, path)
+            from collections.abc import Buffer
+
+            if isinstance(data, Buffer):
+                data = decode_source(data)
+            else:
+                # already valid Python AST
+                return super().source_to_code(data, path)
 
         from pyx_lang.parser import compile_to_ast
 

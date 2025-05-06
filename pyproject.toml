@@ -29,6 +29,7 @@ select = ['TC001', 'TC002', 'TC003', 'TC004', 'TC005', 'TC006', 'TC007', 'TC008'
 [dependency-groups]
 dev = [
     "black>=25.1.0",
+    "ipython>=9.2.0",
     "pytest>=8.3.5",
     "ruff>=0.11.7",
 ]

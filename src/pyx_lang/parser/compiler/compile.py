@@ -6,6 +6,13 @@ from .._parse import parse_to_cst
 
 from pyx_lang.parser.compiler.ast import CstToAstCompiler, CstNode
 
+_NULL_LOCATION: dict = dict(
+    lineno=1,
+    col_offset=0,
+    end_lineno=1,
+    end_col_offset=0,
+)
+
 
 class AstModifier(ast.NodeTransformer):
     def __init__(self, replacements: Mapping[tuple[int, int], ast.AST]):
@@ -16,35 +23,54 @@ class AstModifier(ast.NodeTransformer):
             return v
         return node
 
+    def visit_Module(self, node: Module) -> Any:
+        self.generic_visit(node)
+        node.body.insert(
+            0,
+            ast.ImportFrom(
+                module="pyx_lang.hooks",
+                names=[ast.alias(name="_pyx_", **_NULL_LOCATION)],
+                level=0,
+                **_NULL_LOCATION,
+            ),
+        )
+        return node
+
 
 @overload
 def compile_to_ast(
-    src: str | CstNode, mode: Literal["exec"], filepath: str = "<string>"
+    code: str | CstNode, mode: Literal["exec"], filepath: str = "<string>"
 ) -> ast.Module: ...
 @overload
 def compile_to_ast(
-    src: str | CstNode, mode: Literal["eval"], filepath: str = "<string>"
+    code: str | CstNode, mode: Literal["eval"], filepath: str = "<string>"
 ) -> ast.Expression: ...
 @overload
 def compile_to_ast(
-    src: str | CstNode, mode: Literal["single"], filepath: str = "<string>"
+    code: str | CstNode, mode: Literal["single"], filepath: str = "<string>"
 ) -> ast.Interactive: ...
 @overload
 def compile_to_ast(
-    src: str | CstNode, mode: Literal["func_type"], filepath: str = "<string>"
+    code: str | CstNode, mode: Literal["func_type"], filepath: str = "<string>"
 ) -> ast.FunctionType: ...
 def compile_to_ast(
-    src: str | CstNode,
+    code: str | CstNode,
     mode: Literal["exec", "eval", "single", "func_type"],
     filepath: str = "<string>",
 ) -> ast.AST:
-    if isinstance(src, str):
-        src = parse_to_cst(src)
+    cst_node: CstNode
+    src: str | None
+    if isinstance(code, str):
+        cst_node = parse_to_cst(code)
+        src = code
+    else:
+        cst_node = code
+        src = None
 
-    compiler = CstToAstCompiler(filename=filepath)
-    compiler.visit(src)
+    compiler = CstToAstCompiler(filename=filepath, code=src)
+    compiler.visit(cst_node)
     ast_: ast.AST = ast.parse(
-        src.get_code(), mode=mode, filename=filepath, type_comments=True
+        cst_node.get_code(), mode=mode, filename=filepath, type_comments=True
     )
 
     ast_ = AstModifier(compiler.locs_to_override).visit(ast_)

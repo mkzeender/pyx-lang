@@ -173,8 +173,10 @@ fstring_format_spec: ':' fstring_content*
 
 
 
-pyxtag: '<' NAME pyxparam* ('/>' | ('>' pyxcontent* '</' NAME '>'))
+pyxtag: '<' [pyxtagargs] ('/>' | pyxtagclose)
+pyxtagargs: NAME pyxparam*
 pyxparam: (NAME '=' factor)
+pyxtagclose: ('>' pyxcontent* '</' [NAME] '>')
 pyxcontent: (pyxtag | FSTRING_STRING | fstring_expr)
 
 #pyxstring: FSTRING_STRING | fstring_expr | pyxtag

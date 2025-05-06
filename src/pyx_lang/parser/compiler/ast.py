@@ -10,6 +10,7 @@ from ast import (
     keyword,
 )
 import ast
+from collections.abc import Iterable
 from parso.python.tree import (
     PythonBaseNode as CstBaseNode,
     PythonNode as CstNode,
@@ -97,9 +98,10 @@ def compile_subexpr(node: CstNodeOrLeaf) -> ast.expr:
 
 
 class CstToAstCompiler:
-    def __init__(self, filename: str = "<string>") -> None:
+    def __init__(self, code: str | None = None, filename: str = "<string>") -> None:
         self.locs_to_override = dict[tuple[int, int], AST]()
         self.filename = filename
+        self.code = code
 
     def generic_visit[NodeT: CstNodeOrLeaf](self, node: NodeT) -> NodeT:
         if isinstance(node, CstErrorLeaf | CstErrorNode):
@@ -109,13 +111,19 @@ class CstToAstCompiler:
                 node.children[i] = self.visit(child)
         return node
 
-    def generic_error(self, node: CstErrorLeaf | CstErrorNode, msg=None) -> Never:
-        bad_code = node.get_code()
+    def generic_error(self, node: CstNodeOrLeaf, msg=None) -> Never:
+        start_line, start_col = node.start_pos
+        end_line, end_col = node.end_pos
+        if self.code is None:
+            code = None
+        else:
+            code_lines = self.code.splitlines()[start_line - 1 : end_line]
+            code = "\n".join(code_lines)
         if msg is None:
-            msg = f'Unexpected "{node.get_first_leaf().get_code()}" here'  # type: ignore
+            msg = f'"{node.get_last_leaf().get_code()}" is not understood here.'  # type: ignore
 
         raise SyntaxError(
-            msg, (self.filename, *node.start_pos, bad_code, *node.end_pos)
+            msg, (self.filename, start_line, start_col + 1, code, end_line, end_col + 1)
         )
 
     def visit[NodeT: CstNodeOrLeaf](self, node: NodeT) -> NodeT:
@@ -139,22 +147,51 @@ class CstToAstCompiler:
             ],
         )
 
-    def create_pyxtag(self, node: CstNode) -> AST:
-        name: str | None = None
+    def create_inner(self, node: CstNode, name: str | None) -> list[AST]: ...
+    def create_kwds(self, nodes: Iterable[CstNodeOrLeaf]) -> list[keyword]:
         kwds = list[keyword]()
 
+        for node in nodes:
+            match node:
+                case CstNode(
+                    type="pyxparam", children=[CstName(value=arg) as n, _, expr]
+                ):
+                    kwds.append(
+                        keyword(arg=arg, value=compile_subexpr(expr), **_pos_dict(n))
+                    )
+                case _:
+                    self.generic_error(node, msg=f"Unexpected {node.type} here.")
+
+        return kwds
+
+    def create_pyxtag(self, node: CstNode) -> AST:
+        name: str | None = None
+        inner = list[AST]()
+        kwds = list[keyword]()
         for child in node.children:
             match child:
                 case CstName(value=value):
                     if name not in (None, value):
-                        raise SyntaxError(
-                            "Closing tag name must match opening tag name"
-                        )  # TODO: better error handling?
+                        self.generic_error(
+                            node=child,
+                            msg="Closing tag name must match opening tag name",
+                        )
                     name = child.value
-                case CstNode(type="pyxparam", children=[CstName(value=arg) as n, _, expr]):
-                    kwds.append(keyword(arg=arg, value=compile_subexpr(expr), **_pos_dict(n)))
 
-        assert name is not None
+                case CstOperator():
+                    pass
+                case CstNode(type="pyxtagclose"):
+                    inner = self.create_inner(child, name)
+                case CstNode(
+                    type="pyxtagargs", children=[CstName(value=name_), *params]
+                ):
+                    name = name_
+                    kwds = self.create_kwds(params)
+                case _:
+                    self.generic_error(child, msg=f"Unexpected {child.type} here.")
+
+        if name is None:
+            name = "Fragment"
 
         expr = Call(
             func=Attribute(
