@@ -4,8 +4,9 @@ from parso.python.tokenize import FStringNode, _compile
 
 
 from re import Pattern
-pyxstring: Pattern[str]= _compile(r'(?:\{\{|\}\}|[^{}<>&]|&[#]?[a-zA-Z0-9]+;)+')
-pyxstring_end: Pattern[str] = _compile(r"(?:[^<>])*</")
+
+pyxstring: Pattern[str] = _compile(r"(?:[^\{\}<&]|&[#]?[a-zA-Z0-9]+;)+")
+pyxstring_end: Pattern[str] = _compile(r"(?:[^<])*</")
 
 
 class PyxFStringNode(FStringNode):
@@ -19,8 +20,9 @@ class PyxNodeStates(Enum):
     INNER = auto()
     CLOSE = auto()
 
+
 class PyxNode(PyxFStringNode):
-    def __init__(self, initial_string: str = ''):
+    def __init__(self, initial_string: str = ""):
         super().__init__('"')
         self.state: PyxNodeStates = PyxNodeStates.OPEN
         self.initial_string = initial_string
@@ -31,7 +33,7 @@ class PyxNode(PyxFStringNode):
 
     def get_start_pos(self) -> tuple[int, int]:
         if not isinstance(self.last_string_start_pos, tuple):
-            raise RuntimeError('No start pos')
+            raise RuntimeError("No start pos")
         return self.last_string_start_pos
 
     # @property
@@ -40,7 +42,7 @@ class PyxNode(PyxFStringNode):
     #         return 0
 
 
-def pyx_tag_status(pyx_stack: list[PyxNode]) -> bool|None:
+def pyx_tag_status(pyx_stack: list[PyxNode]) -> bool | None:
     if not pyx_stack:
         return False
     if len(pyx_stack) == 1:
@@ -51,8 +53,9 @@ def pyx_tag_status(pyx_stack: list[PyxNode]) -> bool|None:
             return None
     return True
 
-def find_pyx_string(fstring_stack: list[PyxNode], line, lnum, pos) -> tuple[str, int]:
-    tos = fstring_stack[-1]
+
+def find_pyx_string(pyx_stack: list[PyxNode], line, lnum, pos) -> tuple[str, int]:
+    tos = pyx_stack[-1]
 
     match = pyxstring.match(line, pos)
     if match is None:
@@ -63,17 +66,15 @@ def find_pyx_string(fstring_stack: list[PyxNode], line, lnum, pos) -> tuple[str,
 
     string = match.group(0)
     string += tos.initial_string
-    tos.initial_string = ''
+    tos.initial_string = ""
     new_pos = pos
     new_pos += len(string)
     # even if allow_multiline is False, we still need to check for trailing
     # newlines, because a single-line f-string can contain line continuations
-    if string.endswith('\n') or string.endswith('\r'):
+    if string.endswith("\n") or string.endswith("\r"):
         tos.previous_lines += string
-        string = ''
+        string = ""
     else:
         string = tos.previous_lines + string
 
     return string, new_pos
-
-

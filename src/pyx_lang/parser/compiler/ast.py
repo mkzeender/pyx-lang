@@ -2,15 +2,13 @@ from ast import (
     AST,
     Attribute,
     Call,
-    Constant,
-    JoinedStr,
     Load,
     Name,
-    NodeTransformer,
     keyword,
 )
 import ast
 from collections.abc import Iterable
+import html
 from parso.python.tree import (
     PythonBaseNode as CstBaseNode,
     PythonNode as CstNode,
@@ -18,83 +16,64 @@ from parso.python.tree import (
     Name as CstName,
     PythonErrorLeaf as CstErrorLeaf,
     PythonErrorNode as CstErrorNode,
+    FStringString as CstFstringString,
 )
 from parso.tree import NodeOrLeaf as CstNodeOrLeaf
-from typing import Any, Never, Protocol, TypeIs
+from typing import Any, Never, TypedDict, Unpack
+
+from pyx_lang.parser.compiler.ast_apply_offset import (
+    apply_offset,
+    syntaxerror_offset,
+)
+import pyx_lang.parser.compiler.compile as pyxcomp
+from pyx_lang.parser.compiler.positions import (
+    OptionalPosDict,
+    PosDict,
+    PosTuple,
+    add,
+    position_of,
+)
+
+FRAGMENT = "Fragment"
 
 
-class Located(Protocol):
-    lineno: int
-    col_offset: int
-    end_lineno: int | None
-    end_col_offset: int | None
+class _Empty(TypedDict):
+    pass
 
 
-def has_loc(v) -> TypeIs[Located]:
-    return True  # hack
-    return hasattr(v, "lineno")
+def _compile_with_offset(
+    code: str,
+    filepath: str,
+    pos: PosDict,
+    root_pos: OptionalPosDict = OptionalPosDict(),
+) -> ast.expr:
+    try:
+        expr = pyxcomp.compile_to_ast(code, mode="eval", filepath=filepath).body
+    except SyntaxError as e:
+        syntaxerror_offset(e, pos)
+        raise
 
-
-def _pos_dict(node):
-    return dict(
-        lineno=node.start_pos[0],
-        col_offset=node.start_pos[1],
-        end_lineno=node.end_pos[0],
-        end_col_offset=node.end_pos[1],
-    )
-
-
-class AstOffsetApplier(NodeTransformer):
-    def __init__(self, line_offset: int, col_offset: int) -> None:
-        super().__init__()
-        self.line_offset = line_offset
-        self.col_offset = col_offset
-
-    def visit(self, node: AST) -> Any:
-        if has_loc(node):
-            try:
-                node.lineno += self.line_offset
-                if node.end_lineno is not None:
-                    node.end_lineno += self.line_offset
-
-                node.col_offset += self.col_offset
-                if node.end_col_offset is not None:
-                    node.end_col_offset += self.col_offset
-            except AttributeError:
-                pass
-
-        return super().visit(node)
-
-
-def apply_offset(
-    root_node: AST,
-    line_offset: int,
-    col_offset: int,
-    root_col_start: int | None = None,
-    root_col_end: int | None = None,
-) -> None:
-    AstOffsetApplier(line_offset, col_offset).visit(root_node)
-
-    if has_loc(root_node):
-        try:
-            if root_col_start is not None:
-                root_node.col_offset = root_col_start
-            if root_col_end is not None:
-                root_node.end_col_offset = root_col_end
-        except AttributeError:
-            pass
-
-
-def compile_subexpr(node: CstNodeOrLeaf) -> ast.expr:
-    code = node.get_code(include_prefix=False)
-    assert isinstance(code, str)
-    expr_stmt = ast.parse("(" + code + ")", mode="exec").body[0]
-    assert isinstance(expr_stmt, ast.Expr)
-    expr = expr_stmt.value
-
-    apply_offset(expr, line_offset=node.start_pos[0], col_offset=node.start_pos[1] - 1)
+    apply_offset(expr, pos, root_offset=root_pos)
 
     return expr
+
+
+def compile_subexpr(node: CstNodeOrLeaf, filepath: str) -> ast.expr:
+    code: str = node.get_code(include_prefix=False)  # type: ignore
+    return _compile_with_offset(code, filepath, position_of(node))
+
+
+def compile_fstring_expr(node: CstNode, filepath: str) -> ast.expr:
+    code: str = node.get_code(include_prefix=False)
+    code = 'f"' + code + '"'
+
+    pos = position_of(node)
+
+    # account for the f" at the start of code
+    pos["col_offset"] -= 2
+    pos["end_col_offset"] = add(pos["end_col_offset"], -2)
+
+    return _compile_with_offset(code, filepath, pos)
 
 
 class CstToAstCompiler:
@@ -111,19 +90,59 @@ class CstToAstCompiler:
                 node.children[i] = self.visit(child)
         return node
 
-    def generic_error(self, node: CstNodeOrLeaf, msg=None) -> Never:
-        start_line, start_col = node.start_pos
-        end_line, end_col = node.end_pos
+    def generic_error(
+        self, node: CstNodeOrLeaf, msg=None, **position: Unpack[OptionalPosDict]
+    ) -> Never:
+        if isinstance(node, CstErrorNode | CstErrorLeaf):
+            child: CstNodeOrLeaf = node
+            while children := getattr(child, "children", None):
+                for child in children:
+                    if isinstance(child, CstErrorNode | CstErrorLeaf):
+                        break
+                else:
+                    break
+            if not isinstance(child, CstErrorLeaf | CstErrorNode):
+                bad_child = child.get_next_leaf()
+            else:
+                bad_child = child
+            msg = f'"{
+                bad_child.get_code(include_prefix=False)
+                if bad_child is not None
+                else "EOF"
+            }" is not understood here.'
+            if bad_child is not node and bad_child is not None:
+                return self.generic_error(bad_child, msg=msg)
+
+        pos = position_of(node)
+        pos.update(position)
+        lineno, col_offset, end_lineno, end_col_offset = PosTuple(**pos)
+
         if self.code is None:
-            code = None
+            code_line = None
         else:
-            code_lines = self.code.splitlines()[start_line - 1 : end_line]
-            code = "\n".join(code_lines)
+            code_line = self.code.splitlines()[lineno - 1]
+            if lineno != end_lineno:
+                end_col_offset = len(code_line) - 1
+                end_lineno = lineno
         if msg is None:
-            msg = f'"{node.get_last_leaf().get_code()}" is not understood here.'  # type: ignore
+            msg = f"Unexpected {node.type} here."
+
+        if end_col_offset is None:
+            end_col_offset = col_offset + 1
+
+        if end_lineno is None:
+            end_lineno = lineno
 
         raise SyntaxError(
-            msg, (self.filename, start_line, start_col + 1, code, end_line, end_col + 1)
+            msg,
+            (
+                self.filename,
+                lineno,
+                col_offset + 1,
+                code_line,
+                lineno,
+                end_col_offset + 1,
+            ),
         )
 
     def visit[NodeT: CstNodeOrLeaf](self, node: NodeT) -> NodeT:
@@ -132,7 +151,7 @@ class CstToAstCompiler:
     def visit_pyxtag(self, node: CstNode) -> CstNodeOrLeaf:
         self.locs_to_override[node.start_pos] = self.create_pyxtag(node)
 
-        prefix = node.get_first_leaf().prefix  # type: ignore
+        prefix: str = node.get_first_leaf().prefix  # type: ignore
         code = node.get_code(include_prefix=False)
         lines = code.splitlines()
         filler: str = ("\n" * (len(lines) - 1)) + (" ") * len(lines[-1])
@@ -147,7 +166,42 @@ class CstToAstCompiler:
             ],
         )
 
-    def create_inner(self, node: CstNode, name: str | None) -> list[AST]: ...
+    def create_inner(self, node: CstNode, name: str) -> list[ast.expr]:
+        inner = list[ast.expr]()
+        close_name = FRAGMENT
+        close_pos = position_of(node)
+        for child in node.children:
+            match child:
+                case CstName(value=value):
+                    close_name = value
+                    close_pos = position_of(child)
+                case CstOperator():
+                    pass
+                case CstFstringString(value=value):
+                    value = html.unescape(
+                        value.replace("\r\n", "\n").replace("\r", "\n")
+                    )
+
+                    inner.append(
+                        ast.Constant(
+                            value=value,
+                            **position_of(child),
+                        )
+                    )
+                case CstNode(type="pyxtag"):
+                    inner.append(self.create_pyxtag(child))
+                case CstNode(type="fstring_expr"):
+                    inner.append(compile_fstring_expr(child, self.filename))
+                case _:
+                    self.generic_error(child)
+
+        if name != close_name:
+            self.generic_error(
+                node=node, msg=f"{name} tag was not closed.", **close_pos
+            )
+
+        return inner
+
     def create_kwds(self, nodes: Iterable[CstNodeOrLeaf]) -> list[keyword]:
         kwds = list[keyword]()
 
@@ -157,55 +211,52 @@ class CstToAstCompiler:
                     type="pyxparam", children=[CstName(value=arg) as n, _, expr]
                 ):
                     kwds.append(
-                        keyword(arg=arg, value=compile_subexpr(expr), **_pos_dict(n))
+                        keyword(
+                            arg=arg,
+                            value=compile_subexpr(expr, self.filename),
+                            **position_of(n),
+                        )
                     )
                 case _:
                     self.generic_error(node, msg=f"Unexpected {node.type} here.")
 
         return kwds
 
-    def create_pyxtag(self, node: CstNode) -> AST:
-        name: str | None = None
-        inner = list[AST]()
+    def create_pyxtag(self, node: CstNode) -> Call:
+        name: str = FRAGMENT
+        name_pos = position_of(node)
+        name_pos.update(end_lineno=None, end_col_offset=None)
+        inner = list[ast.expr]()
         kwds = list[keyword]()
         for child in node.children:
             match child:
-                case CstName(value=value):
-                    if name not in (None, value):
-                        self.generic_error(
-                            node=child,
-                            msg="Closing tag name must match opening tag name",
-                        )
-                    name = child.value
-
                 case CstOperator():
                     pass
                 case CstNode(type="pyxtagclose"):
                     inner = self.create_inner(child, name)
                 case CstNode(
-                    type="pyxtagargs", children=[CstName(value=name_), *params]
+                    type="pyxtagargs",
+                    children=[CstName(value=name_) as cstname, *params],
                 ):
                     name = name_
+                    name_pos = position_of(cstname)
                     kwds = self.create_kwds(params)
+                case CstName(value=name_):
+                    name = name_
+                    name_pos = position_of(child)
                 case _:
                     self.generic_error(child, msg=f"Unexpected {child.type} here.")
 
-        if name is None:
-            name = "Fragment"
-
         expr = Call(
             func=Attribute(
-                value=Name(id="_pyx_", ctx=Load(), **_pos_dict(node)),
+                value=Name(id="_pyx_", ctx=Load(), **position_of(node)),
                 attr="create_element",
                 ctx=Load(),
-                **_pos_dict(node),
+                **position_of(node),
             ),
-            args=[
-                Name(id=name, ctx=Load(), **_pos_dict(node)),
-                # JoinedStr(values=[Constant(value="hi there")], **_pos_dict(node)),
-            ],  # TODO: actual body!
+            args=[Name(id=name, ctx=Load(), **name_pos), *inner],  # TODO: actual body!
             keywords=kwds,
-            **_pos_dict(node),
+            **position_of(node),
         )
 
         return expr

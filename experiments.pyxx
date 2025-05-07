@@ -1,6 +1,6 @@
-v = <print href='hi'>
-    worldworldworld
-    <print></print>
+v = <print>
+    {world}
+    <print href='hi' />coolia
     </print>
 
 if __name__ == '__main__':
